@@ -1,0 +1,12 @@
+Source: set-screen-blank-antix
+Section: system
+Priority: optional
+Maintainer: anticapitalista <antiX@operamail.com>
+Build-Depends: debhelper (>= 9.20120115)
+Standards-Version: 3.9.4
+Homepage: http://antix.mepis.org
+
+Package: set-screen-blank-antix
+Architecture: all
+Depends: x11-xserver-utils, yad 
+Description: App to set up screen blanking in antiX.

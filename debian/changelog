@@ -1,0 +1,13 @@
+set-screen-blank-antix (0.2.0) unstable; urgency=low 
+ 
+  * Rewritten for antiX-14.
+
+ -- anticapitalista <antiX@operamail.com>  Mon, 23 Jun 2014 17:50:00 +0200
+
+
+set-screen-blank-antix (0.1.0) unstable; urgency=low 
+ 
+  * Initial Release.
+
+ -- anticapitalista <antiX@operamail.com>  Sat, 19 Oct 2013 15:30:00 +0200
+
