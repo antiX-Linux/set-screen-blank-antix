@@ -1,3 +1,9 @@
+set-screen-blank-antix (0.2.1) unstable; urgency=medium
+
+  * Fix for certain non-English locales.
+
+ -- anticapitalista <antix@operamail.com>  Fri, 18 Nov 2016 15:47:57 +0200
+
 set-screen-blank-antix (0.2.0) unstable; urgency=low 
  
   * Rewritten for antiX-14.

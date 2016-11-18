@@ -40,7 +40,7 @@ function check_results {
     case $CANOK in
     0)
         #SET a time based on selection
-        minutes=$(echo "$TimeScale" |cut -d "|" -f4|cut -d "." -f1);
+        minutes=$(echo "$TimeScale" |cut -d "|" -f4);
         #MOVE HERE
         seconds=$((minutes * 60))
         xset dpms $seconds $seconds $seconds s $seconds $seconds; 
@@ -81,6 +81,7 @@ function currently_on {
 	SAVED_TIME_M=$(($SAVED_TIME/ 60))
     TimeScale=$(yad --title=$"Screen Blanking" \
     --image="info" \
+    --float-precision=0 \
     --form \
     --field=$"$DIFFERING_VALUES\nScreen blanking is currently ON.:LBL" \
     --field=$"Turn OFF:BTN" "" "bash -c 'xset dpms 0 0 0 s 0 0; kill $(pgrep -P $MY_PID); exec $0 & kill $MY_PID'"\
