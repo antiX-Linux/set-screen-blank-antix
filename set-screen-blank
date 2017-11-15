@@ -1,135 +1,169 @@
-#!/bin/bash
-# File Name: set-screen-blank
-# Dependencies: xset, yad
-# Version: 1.0
-# Purpose: Set different xset screen blank times and toggle blanking on
-# and off.
-# Authors: Dave (david.dejong02@gmail.com  or david@daveserver.info)
-# Contributor: BitJam (bitjam@gmail.com)
-# NOTES: This script has a hidden -tq (toggle quietly) option
+#!/usr/bin/env python
+#Name: set-screen-blank
+#Version: 2.0
+#Depends: python, Gtk, xset
+#Author: Dave (david@daveserver.info)
+#Purpose: Configure screen blank time on a per user basis for a session. 
+#License: gplv2
 
-# Copyright (C) Tuesday, Feb. 7, 2011  by Dave / 
-# david.dejong02@gmail.com  or david@daveserver.info
-# License: gplv2
-# This file is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-#############################################################################
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, Gdk, GLib
+import os 
+import re
+import gettext
+gettext.install("set-screen-blank.py", "/usr/share/locale")
+class Error:
+    def __init__(self, parent, error):
+        dlg = Gtk.MessageDialog(parent, 0, Gtk.MessageType.ERROR, Gtk.ButtonsType.OK, "Error")
+        dlg.format_secondary_text(error)
+        dlg.run()
+        dlg.destroy()
+       
+class Success:
+    def __init__(self, parent, success):
+         dlg = Gtk.MessageDialog(parent, 0, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, "Success")
+         dlg.format_secondary_text(success)
+         dlg.run()
+         dlg.destroy()
 
-CONF_DIR="$HOME/.desktop-session"
-CONF_FILE="$CONF_DIR/desktop-session.conf"
-GLOBAL_CONF_FILE="/etc/desktop-session/desktop-session.conf"
-MY_PID="$$"
+class Var: 
+    def read(self):        
+        var = Var
+        var.USER_HOME = os.environ['HOME']
+        var.CONF_USER_DIR = var.USER_HOME+"/.desktop-session/"
+        var.CONF_USER_FILE = var.CONF_USER_DIR+"desktop-session.conf"
+        var.CONF_SYSTEM_FILE = "/etc/desktop-session/desktop-session.conf"
+        
+        if not os.path.exists(var.CONF_USER_DIR):
+            os.system("mkdir %s" % (var.CONF_USER_DIR))
+            os.system("cp %s %s" % ((var.CONF_SYSTEM_FILE),(var.CONF_USER_DIR)))
+        else:
+            if not os.path.isfile(var.CONF_USER_FILE):
+                os.system("cp %s %s" % ((var.CONF_SYSTEM_FILE),(var.CONF_USER_DIR)))
+            
+        for line in open(var.CONF_USER_FILE, "r").xreadlines():
+            if "#" not in line:
+                if re.search(r'^SCREEN_BLANK_TIME=', line):
+                    pieces = line.split('=')
+                    OBJECT=(pieces[1])
+                    OBJECT = re.sub(r'\n', '', OBJECT)
+                    OBJECT = re.sub(r'"', '', OBJECT)
+                    OBJECT = (int(OBJECT)/60)
+                    var.blank_time = OBJECT
+        
+    def write(self, item):
+        WRITE_FILE = Var.CONF_USER_FILE+".tmp"
+        READ_FILE = Var.CONF_USER_FILE
+        
+        text = file((WRITE_FILE), "w");text.write("");text.close()
+        text = file((WRITE_FILE), "a")
+        for line in open(READ_FILE, "r").xreadlines():
+            if "#" not in line:
+                if re.search(r'^SCREEN_BLANK_TIME=', line):
+                    text.write ("SCREEN_BLANK_TIME=\""+str(item)+"\"\n") 
+                else:
+                    text.write (line) 
+            else:
+                text.write (line) 
+        text.close()        
+        os.system("mv %s %s" % ((WRITE_FILE), (READ_FILE)))
 
-TEXTDOMAINDIR=/usr/share/locale
-TEXTDOMAIN=set-screen-blank
+class mainWindow(Gtk.Window):
 
-#Check the results of the ok / yes no questions and apply accordingly
-function check_results {
-    CANOK="$?";
-    case $CANOK in
-    0)
-        #SET a time based on selection
-        minutes=$(echo "$TimeScale" |cut -d "|" -f4);
-        #MOVE HERE
-        seconds=$((minutes * 60))
-        xset dpms $seconds $seconds $seconds s $seconds $seconds; 
-        if [ "$minutes" -ge "1" ]; then
-            #Uncomment below and move if statement to #MOVE HERE line above to enable a change to 10 minutes instead of turning off the screen blank
-            #minutes="10";
-            #yad --image="info" --text=$"Setting a value of 0 is the blank the screen,\n Why not use the turn off button? \n\nI am changing 0 to a resonable time value of 10."  --button="gtk-ok:0";
-            sed -ir "s/^SCREEN_BLANK_TIME=\".*\"/SCREEN_BLANK_TIME=\"$seconds\"/" $CONF_FILE;
-        fi
-        exec $0 &
-        exit;
-        ;;
-    1)
-        #exit when exit flag is passed
-        echo $"Ok Closing";
-        exit; 
-        ;;
-    esac
-    }
+    def apply(self,widget,option):
+        if option == 0: #apply button
+            blank_time_value = int(self.blank_time.get_value())
+            blank_time_value = (blank_time_value * 60)
+            Var().write(blank_time_value)
+            try:
+                os.system("xset dpms "+str(blank_time_value)+" "+str(blank_time_value)+" "+str(blank_time_value)+" s "+str(blank_time_value)+" "+str(blank_time_value)+" ")
+            except:
+                Error(self, _("Could not run set-screen-blank -set"))
+            else:
+                Success(self, _("Screen blank time has been set to: \n"+str(blank_time_value/60)+" minutes or "+str(blank_time_value)+" seconds" ))
 
-#OFF Interface, 
-#ON button -> set with save value, close yad, restart script, exit old script
-function currently_off {
-    TimeScale=$(yad --title=$"Screen Blanking" \
-    --image="info" \
-    --form \
-    --field=$"Screen blanking is currently OFF:LBL" \
-    --field=$"Turn ON:BTN" "" "bash -c 'xset dpms $SAVED_TIME $SAVED_TIME $SAVED_TIME s $SAVED_TIME $SAVED_TIME; kill $(pgrep -P $MY_PID); exec $0 & kill $MY_PID'" \
-    --width=300 \
-    --button="gtk-close:1"  \
-    );
-    check_results;
-    }
-   
-#ON Interface
-#OFF button -> set with 0, close yad, restart script, exit old script 
-function currently_on {
-	SAVED_TIME_M=$(($SAVED_TIME/ 60))
-    TimeScale=$(yad --title=$"Screen Blanking" \
-    --image="info" \
-    --float-precision=0 \
-    --form \
-    --field=$"$DIFFERING_VALUES\nScreen blanking is currently ON.:LBL" \
-    --field=$"Turn OFF:BTN" "" "bash -c 'xset dpms 0 0 0 s 0 0; kill $(pgrep -P $MY_PID); exec $0 & kill $MY_PID'"\
-    --field=$"Set the screen blank time.\nValue in minutes:LBL" \
-    --field=":NUM" "" "$SAVED_TIME_M" \
-    --width=300 \
-    --height=200 \
-    --button="gtk-apply:0"  \
-    --button="gtk-close:1"  \
-    );
-    check_results;
-    }
+    def toggle_blank(self, widget, object):
+        if self.switch.get_active() == True:
+            current_time = str(Var.blank_time)
+            self.blank_time.set_sensitive(True)
+            self.aply.set_sensitive(True)
+            self.sliderbox_label.set_sensitive(True)
+            try:
+                os.system("xset +dpms; xset s on; xset s expose;")
+            except:
+                Error(self, _("Could not turn on screen blank"))
+                self.switch.set_active(False)
+        else:
+            self.blank_time.set_sensitive(False)
+            self.aply.set_sensitive(False)
+            self.sliderbox_label.set_sensitive(False)
+            Var().write(0)
+            try:
+                os.system("xset dpms 0 0 0 s 0 0; xset -dpms; xset s off; xset s noexpose ")
+            except:
+                Error(self, _("Could not run turn off screen blank via xset 0 0 0 s 0 0, xset -dpms, xset s off, xset s noexpose"))
+                self.switch.set_active(True)
+            else:
+                Success(self, _("Screen blanking has been turned off" ))
 
-#Get current blank times    
-CURRENT_BLANK_TIME_S=$(xset q |grep "Standby:" |cut -d " " -f4)
+    def __init__(self):
+        Gtk.Window.__init__(self)
+        self.set_size_request(300,0)
+        self.set_border_width(10)
+        
+        mainframe = Gtk.Frame(label=_("Screen Blank Time"))
+        self.add(mainframe)
+        self.grid = Gtk.Grid()
+        mainframe.add(self.grid)
+        
+        infobox = Gtk.HBox()
+        infobox.set_border_width(10)
+        self.grid.attach(infobox, 1, 1, 1, 1)
+        
+        self.infobox_label = Gtk.Label()
+        self.infobox_label.set_text(_("  Turn on/off screen blank timeout  "))
+        infobox.pack_start(self.infobox_label, True,True,0)
+        
+        sliderbox = Gtk.VBox()
+        sliderbox.set_border_width(10)
+        self.grid.attach(sliderbox, 1, 2, 2, 1)
+        
+        self.sliderbox_label = Gtk.Label()
+        self.sliderbox_label.set_text(_("  Time before screen blanks (Minutes)  "))
+        sliderbox.pack_start(self.sliderbox_label, True,True,0)
+        
+        adj1 = Gtk.Adjustment(float(Var.blank_time), 0, 120, 1, 5, 1)
+        self.blank_time = Gtk.HScale()
+        self.blank_time.set_adjustment(adj1)
+        #self.blank_time.set_size_request(200, 45)
+        self.blank_time.set_digits(0)
+        self.blank_time.set_draw_value(True)
+        sliderbox.pack_start(self.blank_time, True, True, 0)
+        
+        self.switch = Gtk.Switch()
+        if Var.blank_time == 0 :
+            self.switch.set_active(False)
+        else:
+            self.switch.set_active(True)
+        self.switch.connect("notify::active", self.toggle_blank)
+        self.grid.attach(self.switch, 2, 1, 1, 1)
+        
+        #BUTTON BOX
+        buttonbox = Gtk.HButtonBox()
+        buttonbox.set_border_width(10)
+        self.grid.attach(buttonbox, 2, 3, 1,1)
+        
+        self.aply = Gtk.Button(stock=Gtk.STOCK_APPLY)
+        self.aply.connect("clicked", self.apply, 0)
+        buttonbox.pack_start(self.aply, True, True, 0)
+        
+        close = Gtk.Button(stock=Gtk.STOCK_CLOSE)
+        close.connect("clicked", lambda w: Gtk.main_quit())
+        buttonbox.add(close)
 
-#Check to see if the state file exists if not make it and fill it
-if [ -f $CONF_FILE ]; then
-    if grep -q "^SCREEN_BLANK_TIME=.*" "$CONF_FILE"; then
-        SAVED_TIME=$(cat $CONF_FILE |grep "^SCREEN_BLANK_TIME=\".*\"" |cut -d "=" -f2 |sed "s/\"//ig");
-        if [ "$SAVED_TIME" -le "0" ];then
-            SAVED_TIME="600";
-            sed -ir "s/^SCREEN_BLANK_TIME=\".*\"/SCREEN_BLANK_TIME=\"$SAVED_TIME\"/" $CONF_FILE;
-        fi
-    else
-        echo $"Screen blank time was not found by set-screen-blank. Therefore we make the config option" > $CONF_FILE
-        echo "SCREEN_BLANK_TIME=\"600\"" >> $CONF_FILE
-    fi
-else
-    mkdir -p $CONF_DIR;
-    cp $GLOBAL_CONF_FILE $CONF_FILE
-fi
-
-#Check Current blank time to see what the interface should be
-if [ "$CURRENT_BLANK_TIME_S" = "0" ]; then
-    if [ "$1" = "-tq" ]; then 
-        xset dpms $SAVED_TIME $SAVED_TIME $SAVED_TIME s $SAVED_TIME $SAVED_TIME;
-    else
-        currently_off;
-    fi
-else
-    if [ "$1" = "-tq" ]; then 
-        xset dpms 0 0 0 s 0 0;
-    else
-        if [ "$SAVED_TIME" != "$CURRENT_BLANK_TIME_S" ];then    
-            DIFFERING_VALUES=$"The saved and set times were different! \nI have adjusted the set time to saved time. \n"
-            xset dpms $SAVED_TIME $SAVED_TIME $SAVED_TIME s $SAVED_TIME $SAVED_TIME;
-        fi
-    currently_on;
-    fi
-fi
+Var().read()
+win = mainWindow()
+win.connect("delete-event", Gtk.main_quit)
+win.show_all()
+Gtk.main()
