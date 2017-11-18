@@ -82,22 +82,28 @@ class mainWindow(Gtk.Window):
                 Error(self, _("Could not run set-screen-blank -set"))
             else:
                 Success(self, _("Screen blank time has been set to: \n"+str(blank_time_value/60)+" minutes or "+str(blank_time_value)+" seconds" ))
+    
+    def toggle_sensitive(self, option):
+        if option == 0 :
+            self.aply.set_sensitive(False)
+            self.blank_time.set_sensitive(False)
+            self.sliderbox_label.set_sensitive(False)
+        else:
+            self.aply.set_sensitive(True)
+            self.blank_time.set_sensitive(True)
+            self.sliderbox_label.set_sensitive(True)
 
     def toggle_blank(self, widget, object):
         if self.switch.get_active() == True:
             current_time = str(Var.blank_time)
-            self.blank_time.set_sensitive(True)
-            self.aply.set_sensitive(True)
-            self.sliderbox_label.set_sensitive(True)
+            self.toggle_sensitive(1)
             try:
                 os.system("xset +dpms; xset s on; xset s expose;")
             except:
                 Error(self, _("Could not turn on screen blank"))
                 self.switch.set_active(False)
         else:
-            self.blank_time.set_sensitive(False)
-            self.aply.set_sensitive(False)
-            self.sliderbox_label.set_sensitive(False)
+            self.toggle_sensitive(0)
             Var().write(0)
             try:
                 os.system("xset dpms 0 0 0 s 0 0; xset -dpms; xset s off; xset s noexpose ")
@@ -142,10 +148,6 @@ class mainWindow(Gtk.Window):
         sliderbox.pack_start(self.blank_time, True, True, 0)
         
         self.switch = Gtk.Switch()
-        if Var.blank_time == 0 :
-            self.switch.set_active(False)
-        else:
-            self.switch.set_active(True)
         self.switch.connect("notify::active", self.toggle_blank)
         self.grid.attach(self.switch, 2, 1, 1, 1)
         
@@ -161,6 +163,13 @@ class mainWindow(Gtk.Window):
         close = Gtk.Button(stock=Gtk.STOCK_CLOSE)
         close.connect("clicked", lambda w: Gtk.main_quit())
         buttonbox.add(close)
+        
+        if Var.blank_time == 0 :
+            self.switch.set_active(False)
+            self.toggle_sensitive(0)
+        else:
+            self.switch.set_active(True)
+            self.toggle_sensitive(1)
 
 Var().read()
 win = mainWindow()
